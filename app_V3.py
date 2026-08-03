@@ -50,8 +50,8 @@ if params.get("type") == "recovery" or "access_token" in params:
     st.title("🔑 Redéfinition de votre mot de passe")
     st.info("Vous avez cliqué sur le lien de réinitialisation. Veuillez saisir votre nouveau mot de passe ci-dessous.")
 
-    # Récupération du token transmis dans l'URL
     access_token = params.get("access_token")
+    refresh_token = params.get("refresh_token", access_token)
 
     with st.form("form_recovery_password"):
         new_pwd = st.text_input("Nouveau mot de passe", type="password", key="rec_pwd1")
@@ -68,12 +68,9 @@ if params.get("type") == "recovery" or "access_token" in params:
                     if not access_token:
                         st.error("Jeton de réinitialisation manquant dans l'URL.")
                     else:
-                        # Création du client temporaire avec le token de récupération
-                        auth_client = create_client(
-                            url, 
-                            key, 
-                            options=ClientOptions(headers={"Authorization": f"Bearer {access_token}"})
-                        )
+                        # Création du client temporaire et injection des tokens
+                        auth_client = create_client(url, key)
+                        auth_client.auth.set_session(access_token, refresh_token)
                         auth_client.auth.update_user({"password": new_pwd})
                         
                         st.success("✅ Votre mot de passe a été réinitialisé avec succès !")
@@ -84,7 +81,6 @@ if params.get("type") == "recovery" or "access_token" in params:
                     st.error(f"Erreur lors de la mise à jour : {e}")
 
     st.stop()
-
 # Initialisation des variables de session
 if "user" not in st.session_state:
     st.session_state.user = None
@@ -136,20 +132,17 @@ def modal_changement_mot_de_passe():
                 st.error("Les deux mots de passe ne correspondent pas.")
             else:
                 try:
-                    # 1. Vérification de la présence du token de session
+                    # 1. Vérification de la présence de la session
                     session = st.session_state.get("session")
                     if not session or not hasattr(session, "access_token"):
                         st.error("Session expirée. Veuillez vous déconnecter et vous reconnecter.")
                         st.stop()
 
-                    # 2. Création d'un client authentifié avec le token JWT de l'utilisateur
-                    auth_client = create_client(
-                        url, 
-                        key, 
-                        options=ClientOptions(headers={"Authorization": f"Bearer {session.access_token}"})
-                    )
+                    # 2. Création d'un client dédié et affectation directe de la session via le token
+                    auth_client = create_client(url, key)
+                    auth_client.auth.set_session(session.access_token, session.refresh_token)
                     
-                    # 3. Mise à jour du mot de passe via le client authentifié
+                    # 3. Mise à jour du mot de passe
                     auth_client.auth.update_user({"password": pwd1})
                     
                     # 4. Désactivation du drapeau force_reset_pwd dans la table 'athletes'
@@ -161,6 +154,8 @@ def modal_changement_mot_de_passe():
                     st.rerun()
                 except Exception as e:
                     st.error(f"Erreur lors de la mise à jour : {e}")
+
+
 # Trigger de contrôle au démarrage de la session
 if st.session_state.get("athlete_info") and st.session_state.athlete_info.get("force_reset_pwd", False):
     modal_changement_mot_de_passe()
