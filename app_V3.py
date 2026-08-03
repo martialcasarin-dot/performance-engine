@@ -129,8 +129,8 @@ def modal_changement_mot_de_passe():
     st.warning("Votre entraîneur exige la définition/mise à jour de votre mot de passe pour accéder à votre espace.")
     
     with st.form("form_modal_reset_pwd"):
-        pwd1 = st.text_input("Nouveau mot de passe", type="password")
-        pwd2 = st.text_input("Confirmer le mot de passe", type="password")
+        pwd1 = st.text_input("Nouveau mot de passe", type="password", key="modal_pwd1")
+        pwd2 = st.text_input("Confirmer le mot de passe", type="password", key="modal_pwd2")
         
         if st.form_submit_button("💾 Enregistrer et accéder à l'application", use_container_width=True):
             if not pwd1 or len(pwd1) < 6:
@@ -139,10 +139,14 @@ def modal_changement_mot_de_passe():
                 st.error("Les deux mots de passe ne correspondent pas.")
             else:
                 try:
-                    # 1. Mise à jour du mot de passe Auth
+                    # S'assurer que la session active est bien transmise si disponible
+                    if st.session_state.get("user") and hasattr(st.session_state.user, "access_token"):
+                        supabase.auth.set_session(st.session_state.user.access_token, st.session_state.user.refresh_token)
+
+                    # 1. Mise à jour du mot de passe dans Supabase Auth
                     supabase.auth.update_user({"password": pwd1})
                     
-                    # 2. Désactivation du drapeau dans la table 'athletes'
+                    # 2. Désactivation du drapeau force_reset_pwd dans la BDD
                     if st.session_state.athlete_info and st.session_state.athlete_info.get("id"):
                         supabase.table("athletes").update({"force_reset_pwd": False}).eq("id", st.session_state.athlete_info["id"]).execute()
                         st.session_state.athlete_info["force_reset_pwd"] = False
@@ -151,7 +155,6 @@ def modal_changement_mot_de_passe():
                     st.rerun()
                 except Exception as e:
                     st.error(f"Erreur lors de la mise à jour : {e}")
-
 # Trigger de contrôle au démarrage de la session
 if st.session_state.get("athlete_info") and st.session_state.athlete_info.get("force_reset_pwd", False):
     modal_changement_mot_de_passe()
