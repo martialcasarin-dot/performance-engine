@@ -48,6 +48,17 @@ if params.get("type") == "recovery" or "access_token" in params:
     st.title("🔑 Redéfinition de votre mot de passe")
     st.info("Vous avez cliqué sur le lien de réinitialisation. Veuillez saisir votre nouveau mot de passe ci-dessous.")
 
+    # 1. Extraction des tokens de l'URL
+    access_token = params.get("access_token")
+    refresh_token = params.get("refresh_token", access_token)
+
+    # 2. Initialisation explicite de la session Supabase si le token est présent
+    if access_token:
+        try:
+            supabase.auth.set_session(access_token, refresh_token)
+        except Exception:
+            pass
+
     with st.form("form_recovery_password"):
         new_pwd = st.text_input("Nouveau mot de passe", type="password", key="rec_pwd1")
         confirm_pwd = st.text_input("Confirmer le nouveau mot de passe", type="password", key="rec_pwd2")
@@ -60,9 +71,14 @@ if params.get("type") == "recovery" or "access_token" in params:
                 st.error("Les deux mots de passe ne correspondent pas.")
             else:
                 try:
-                    # Supabase utilise le token actif de l'URL pour valider le changement
+                    # 3. Réactivation de la session juste avant l'update
+                    if access_token:
+                        supabase.auth.set_session(access_token, refresh_token)
+
+                    # 4. Mise à jour du mot de passe utilisateur
                     supabase.auth.update_user({"password": new_pwd})
                     st.success("✅ Votre mot de passe a été réinitialisé avec succès !")
+                    
                     st.query_params.clear()
                     if st.button("Se connecter à l'application", type="primary"):
                         st.rerun()
