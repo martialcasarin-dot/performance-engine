@@ -48,16 +48,8 @@ if params.get("type") == "recovery" or "access_token" in params:
     st.title("🔑 Redéfinition de votre mot de passe")
     st.info("Vous avez cliqué sur le lien de réinitialisation. Veuillez saisir votre nouveau mot de passe ci-dessous.")
 
-    # 1. Extraction des tokens de l'URL
+    # Récupération du token transmis dans l'URL
     access_token = params.get("access_token")
-    refresh_token = params.get("refresh_token", access_token)
-
-    # 2. Initialisation explicite de la session Supabase si le token est présent
-    if access_token:
-        try:
-            supabase.auth.set_session(access_token, refresh_token)
-        except Exception:
-            pass
 
     with st.form("form_recovery_password"):
         new_pwd = st.text_input("Nouveau mot de passe", type="password", key="rec_pwd1")
@@ -71,21 +63,24 @@ if params.get("type") == "recovery" or "access_token" in params:
                 st.error("Les deux mots de passe ne correspondent pas.")
             else:
                 try:
-                    # 3. Réactivation de la session juste avant l'update
-                    if access_token:
-                        supabase.auth.set_session(access_token, refresh_token)
-
-                    # 4. Mise à jour du mot de passe utilisateur
-                    supabase.auth.update_user({"password": new_pwd})
-                    st.success("✅ Votre mot de passe a été réinitialisé avec succès !")
-                    
-                    st.query_params.clear()
-                    if st.button("Se connecter à l'application", type="primary"):
-                        st.rerun()
+                    if not access_token:
+                        st.error("Jeton de réinitialisation manquant dans l'URL.")
+                    else:
+                        # Création du client temporaire avec le token de récupération
+                        auth_client = create_client(
+                            url, 
+                            key, 
+                            options=ClientOptions(headers={"Authorization": f"Bearer {access_token}"})
+                        )
+                        auth_client.auth.update_user({"password": new_pwd})
+                        
+                        st.success("✅ Votre mot de passe a été réinitialisé avec succès !")
+                        st.query_params.clear()
+                        if st.button("Se connecter à l'application", type="primary"):
+                            st.rerun()
                 except Exception as e:
                     st.error(f"Erreur lors de la mise à jour : {e}")
 
-    # Bloque le chargement du reste de l'application tant qu'on est en mode recovery
     st.stop()
 
 # Initialisation des variables de session
@@ -139,25 +134,36 @@ def modal_changement_mot_de_passe():
                 st.error("Les deux mots de passe ne correspondent pas.")
             else:
                 try:
-                    # S'assurer que la session active est bien transmise si disponible
-                    if st.session_state.get("user") and hasattr(st.session_state.user, "access_token"):
-                        supabase.auth.set_session(st.session_state.user.access_token, st.session_state.user.refresh_token)
+                    # 1. Vérification de la présence du token de session
+                    session = st.session_state.get("session")
+                    if not session or not hasattr(session, "access_token"):
+                        st.error("Session expirée. Veuillez vous déconnecter et vous reconnecter.")
+                        st.stop()
 
-                    # 1. Mise à jour du mot de passe dans Supabase Auth
-                    supabase.auth.update_user({"password": pwd1})
+                    # 2. Création d'un client authentifié avec le token JWT de l'utilisateur
+                    auth_client = create_client(
+                        url, 
+                        key, 
+                        options=ClientOptions(headers={"Authorization": f"Bearer {session.access_token}"})
+                    )
                     
-                    # 2. Désactivation du drapeau force_reset_pwd dans la BDD
+                    # 3. Mise à jour du mot de passe via le client authentifié
+                    auth_client.auth.update_user({"password": pwd1})
+                    
+                    # 4. Désactivation du drapeau force_reset_pwd dans la table 'athletes'
                     if st.session_state.athlete_info and st.session_state.athlete_info.get("id"):
                         supabase.table("athletes").update({"force_reset_pwd": False}).eq("id", st.session_state.athlete_info["id"]).execute()
                         st.session_state.athlete_info["force_reset_pwd"] = False
                         
-                    st.success("Mot de passe mis à jour avec succès !")
+                    st.success("✅ Mot de passe mis à jour avec succès !")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Erreur lors de la mise à jour : {e}")
 # Trigger de contrôle au démarrage de la session
 if st.session_state.get("athlete_info") and st.session_state.athlete_info.get("force_reset_pwd", False):
     modal_changement_mot_de_passe()
+
+
 
 # ==========================================
 # 3. UTILS & FONCTIONS CONVERSION
