@@ -359,6 +359,7 @@ def login(email, password):
     try:
         res = supabase.auth.sign_in_with_password({"email": email, "password": password})
         st.session_state.user = res.user
+        st.session_state.session = res.session  # 👈 SAUVEGARDE DE LA SESSION (CONTIENT LES TOKENS)
         
         profile = supabase.table("athletes").select("*").eq("user_id", res.user.id).execute()
         if profile.data:
