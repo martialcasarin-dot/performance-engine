@@ -860,7 +860,7 @@ if role == "coach":
                                 supabase.auth.reset_password_for_email(
                                     target_email,
                                     options={
-                                        "redirect_to": "https://ton-app.streamlit.app"  # 👈 REMPLACE PAR TON URL DEPLOIEMENT STREAMLIT
+                                        "redirect_to": "https://performance-engine-mk9cj73dgjoezq6wmwwdo9.streamlit.app/"  # 👈 REMPLACE PAR TON URL DEPLOIEMENT STREAMLIT
                                     }
                                 )
                                 st.success(f"E-mail de réinitialisation envoyé à {target_email} !")
