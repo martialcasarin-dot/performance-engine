@@ -5,6 +5,8 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 from supabase import create_client, Client
+from supabase.lib.client_options import ClientOptions
+
 
 # ==========================================
 # 1. CONFIGURATION DE LA PAGE & SUPABASE
